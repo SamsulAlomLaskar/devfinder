@@ -1,10 +1,10 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
-const jwt = require("jsonwebtoken");
 const User = require("./models/user");
 const { connectDB } = require("./config/db.config");
 const { validateSignUpData } = require("./utils/validation");
+const { userAuth } = require("./middlewares/auth");
 
 const app = express();
 
@@ -51,7 +51,6 @@ app.post("/signup", async (req, res) => {
 });
 
 // Login user
-
 app.post("/login", async (req, res) => {
   try {
     const { emailId, password } = req.body;
@@ -62,15 +61,22 @@ app.post("/login", async (req, res) => {
       throw new Error("Email is not present in the DB");
     }
 
-    const isValidPassword = await bcrypt.compare(password, userDetail.password);
+    const isValidPassword = await userDetail.validatePassword(
+      password,
+      userDetail
+    );
+    console.log("Is valid Password", isValidPassword);
 
     if (isValidPassword) {
       // create a JWT
 
-      const token = await jwt.sign({ _id: userDetail._id }, "DEVFINDER", {
-        expiresIn: "5m",
+      const token = await userDetail.getJWT();
+      console.log("Token JWT", token);
+
+      res.cookie("token", token, {
+        // maxAge or the expires works the same
+        expires: new Date(Date.now() + 5 * 60 * 1000),
       });
-      res.cookie("token", token);
       res.status(200).send("Login Successful");
     } else {
       res.status(404).send("Invalid credentials");
@@ -86,24 +92,9 @@ app.post("/login", async (req, res) => {
 });
 
 // get profile
-app.get("/profile", async (req, res) => {
+app.get("/profile", userAuth, async (req, res) => {
   try {
-    const cookies = req.cookies;
-
-    const { token } = cookies;
-    if (!token) {
-      throw new Error("Invalid token");
-    }
-
-    // Validate token
-    const tokenDetails = await jwt.verify(token, "DEVFINDER");
-
-    const logedInUser = await User.findById(tokenDetails._id);
-    if (!logedInUser) {
-      throw new Error("User not found, please log in with valid credentials");
-    }
-
-    res.send({ message: "Profile fetched", success: true, data: logedInUser });
+    res.send({ message: "Profile fetched", success: true, data: req.user });
   } catch (error) {
     console.log("Error Occurred : ", error);
 
@@ -114,11 +105,16 @@ app.get("/profile", async (req, res) => {
   }
 });
 
+// send connection request
+app.post("/sendConnectionRequest", userAuth, (req, res) => {
+  console.log("Sending a connection request");
+
+  res.send("Connection request sent");
+});
+
 // get user by email
 app.get("/user", async (req, res) => {
   try {
-    console.log("COOKIE---> ", req.cookies);
-
     const user = await User.findOne({ emailId: req.body.emailId });
     if (user) {
       res.status(200).send({
