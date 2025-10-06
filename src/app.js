@@ -110,6 +110,32 @@ app.get("/feed", async (req, res) => {
   }
 });
 
+// update user data
+app.patch("/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params?.userId;
+    const body = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      { _id: userId },
+      { $set: body },
+      { new: true }
+    );
+    if (updatedUser) {
+      res.status(200).send({
+        message: "User updated successfully",
+        success: true,
+        data: updatedUser,
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+      success: false,
+    });
+  }
+});
+
 connectDB()
   .then(() => {
     console.log("DB connection successful");
