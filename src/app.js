@@ -1,7 +1,9 @@
 const express = require("express");
-const { connectDB } = require("./config/db.config");
+const bcrypt = require("bcrypt");
 const User = require("./models/user");
+const { connectDB } = require("./config/db.config");
 const { validateSignUpData } = require("./utils/validation");
+
 const app = express();
 
 const PORT = 2000;
@@ -11,33 +13,86 @@ app.use(express.json());
 
 // store user
 app.post("/signup", async (req, res) => {
-  // data validation
-  validateSignUpData(req);
-
-  // creating instance of User model
-  const newUser = new User(req.body);
-
   try {
+    // data validation
+    validateSignUpData(req);
+
+    // password encryption
+    const { firstName, lastName, emailId, password } = req.body;
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // creating instance of User model
+    const newUser = new User({
+      firstName,
+      lastName,
+      emailId,
+      password: passwordHash,
+    });
     const isEMailExist = await User.findOne({ emailId: newUser.emailId });
-    if (!isEMailExist) {
-      await newUser.save();
-      res.status(200).json({
-        message: "User data saved successfully",
-        data: newUser,
-        success: true,
-      });
+    if (isEMailExist) {
+      throw new Error("The email already exists, please change the email");
     }
-    throw new Error("The email already exists, please change the email");
+    await newUser.save();
+    res.status(200).json({
+      message: "User data saved successfully",
+      data: newUser,
+      success: true,
+    });
   } catch (error) {
     console.log("Failed to save the user details", error);
 
     res.status(400).json({
-      message: error.message,
+      message: error.message || "Unknown error occurred",
       success: false,
     });
   }
 });
 
+// get user by email
+app.get("/user", async (req, res) => {
+  try {
+    const user = await User.findOne({ emailId: req.body.emailId });
+    if (user) {
+      res.status(200).send({
+        message: "User data saved successfully",
+        data: user,
+        success: true,
+      });
+    }
+  } catch (error) {
+    console.log("Failed to get the user details", error);
+
+    res.status(400).json({
+      message: error.message || "Unknown error occurred",
+      success: false,
+    });
+  }
+});
+
+// delete a user
+app.delete("/user", async (req, res) => {
+  try {
+    const deletedUser = await User.deleteOne({ emailId: req.body.emailId });
+    if (deletedUser > 0) {
+      res.status(200).send({
+        message: "User deleted successfully",
+        success: true,
+      });
+    } else {
+      res.status(404).send({
+        message: "No user found",
+        success: false,
+      });
+    }
+  } catch (error) {
+    console.log("Failed to delete the user details", error);
+
+    res.status(400).json({
+      message: error.message || "Unknown error occurred",
+      success: false,
+    });
+  }
+});
 // Get User
 app.get("/feed", async (req, res) => {
   try {
