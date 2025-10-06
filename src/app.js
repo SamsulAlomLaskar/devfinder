@@ -1,5 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 const User = require("./models/user");
 const { connectDB } = require("./config/db.config");
 const { validateSignUpData } = require("./utils/validation");
@@ -10,7 +12,7 @@ const PORT = 2000;
 
 // Middleware
 app.use(express.json());
-
+app.use(cookieParser());
 // store user
 app.post("/signup", async (req, res) => {
   try {
@@ -63,6 +65,12 @@ app.post("/login", async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, userDetail.password);
 
     if (isValidPassword) {
+      // create a JWT
+
+      const token = await jwt.sign({ _id: userDetail._id }, "DEVFINDER", {
+        expiresIn: "5m",
+      });
+      res.cookie("token", token);
       res.status(200).send("Login Successful");
     } else {
       res.status(404).send("Invalid credentials");
@@ -77,9 +85,40 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// get profile
+app.get("/profile", async (req, res) => {
+  try {
+    const cookies = req.cookies;
+
+    const { token } = cookies;
+    if (!token) {
+      throw new Error("Invalid token");
+    }
+
+    // Validate token
+    const tokenDetails = await jwt.verify(token, "DEVFINDER");
+
+    const logedInUser = await User.findById(tokenDetails._id);
+    if (!logedInUser) {
+      throw new Error("User not found, please log in with valid credentials");
+    }
+
+    res.send({ message: "Profile fetched", success: true, data: logedInUser });
+  } catch (error) {
+    console.log("Error Occurred : ", error);
+
+    res.status(400).json({
+      message: error.message || "Unknown error occurred",
+      success: false,
+    });
+  }
+});
+
 // get user by email
 app.get("/user", async (req, res) => {
   try {
+    console.log("COOKIE---> ", req.cookies);
+
     const user = await User.findOne({ emailId: req.body.emailId });
     if (user) {
       res.status(200).send({
