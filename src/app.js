@@ -48,6 +48,35 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+// Login user
+
+app.post("/login", async (req, res) => {
+  try {
+    const { emailId, password } = req.body;
+
+    const userDetail = await User.findOne({ emailId });
+
+    if (!userDetail) {
+      throw new Error("Email is not present in the DB");
+    }
+
+    const isValidPassword = await bcrypt.compare(password, userDetail.password);
+
+    if (isValidPassword) {
+      res.status(200).send("Login Successful");
+    } else {
+      res.status(404).send("Invalid credentials");
+    }
+  } catch (error) {
+    console.log("Error Occurred : ", error);
+
+    res.status(400).json({
+      message: error.message || "Unknown error occurred",
+      success: false,
+    });
+  }
+});
+
 // get user by email
 app.get("/user", async (req, res) => {
   try {
@@ -93,6 +122,7 @@ app.delete("/user", async (req, res) => {
     });
   }
 });
+
 // Get User
 app.get("/feed", async (req, res) => {
   try {
@@ -136,6 +166,7 @@ app.patch("/user/:userId", async (req, res) => {
   }
 });
 
+// DB & Server connection
 connectDB()
   .then(() => {
     console.log("DB connection successful");
