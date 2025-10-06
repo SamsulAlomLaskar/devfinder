@@ -31,7 +31,7 @@ app.post("/signup", async (req, res) => {
   } catch (error) {
     console.log("Failed to save the user details", error);
 
-    res.status(500).json({
+    res.status(400).json({
       message: error.message,
       success: false,
     });
@@ -48,7 +48,7 @@ app.get("/feed", async (req, res) => {
       success: true,
     });
   } catch (error) {
-    res.status(400).json({
+    res.status(500).json({
       message: error.message,
       success: false,
     });
