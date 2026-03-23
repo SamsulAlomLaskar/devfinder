@@ -42,9 +42,9 @@ const userSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: ["male", "female", "others"],
+      enum: ["Male", "Female", "Others"],
       validate(gender) {
-        if (!["male", "female", "other"].includes(gender)) {
+        if (!["Male", "Female", "Others"].includes(gender)) {
           throw new Error("Invalid Gender");
         }
       },
@@ -72,7 +72,7 @@ const userSchema = new mongoose.Schema(
 userSchema.methods.getJWT = async function () {
   const user = this;
   const token = await jwt.sign({ _id: user._id }, "DEVFINDER", {
-    expiresIn: "5m",
+    expiresIn: "10m",
   });
   return token;
 };

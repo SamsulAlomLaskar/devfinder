@@ -3,107 +3,52 @@ const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
 const User = require("./models/user");
 const { connectDB } = require("./config/db.config");
-const { validateSignUpData } = require("./utils/validation");
+const { validateSignUpData, validateProfileEditData } = require("./utils/validation");
 const { userAuth } = require("./middlewares/auth");
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+const profileRouter = require("./routes/profile");
+const authRouter = require("./routes/auth");
 
 const app = express();
 
 const PORT = 2000;
 
+// Request timeout middleware (30 seconds default)
+const requestTimeout = (timeoutMs = 30000) => {
+  return (req, res, next) => {
+    req.setTimeout(timeoutMs, () => {
+      if (!res.headersSent) {
+        res.status(408).json({
+          message: "Request timeout - the server did not receive a complete request in time",
+          success: false,
+        });
+      }
+    });
+
+    // Set response timeout
+    res.setTimeout(timeoutMs, () => {
+      if (!res.headersSent) {
+        res.status(504).json({
+          message: "Gateway timeout - the server did not respond in time",
+          success: false,
+        });
+      }
+    });
+
+    next();
+  };
+};4
+
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-// store user
-app.post("/signup", async (req, res) => {
-  try {
-    // data validation
-    validateSignUpData(req);
+app.use(requestTimeout(30000)); 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-    // password encryption
-    const { firstName, lastName, emailId, password } = req.body;
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // creating instance of User model
-    const newUser = new User({
-      firstName,
-      lastName,
-      emailId,
-      password: passwordHash,
-    });
-    const isEMailExist = await User.findOne({ emailId: newUser.emailId });
-    if (isEMailExist) {
-      throw new Error("The email already exists, please change the email");
-    }
-    await newUser.save();
-    res.status(200).json({
-      message: "User data saved successfully",
-      data: newUser,
-      success: true,
-    });
-  } catch (error) {
-    console.log("Failed to save the user details", error);
-
-    res.status(400).json({
-      message: error.message || "Unknown error occurred",
-      success: false,
-    });
-  }
-});
-
-// Login user
-app.post("/login", async (req, res) => {
-  try {
-    const { emailId, password } = req.body;
-
-    const userDetail = await User.findOne({ emailId });
-
-    if (!userDetail) {
-      throw new Error("Email is not present in the DB");
-    }
-
-    const isValidPassword = await userDetail.validatePassword(
-      password,
-      userDetail
-    );
-    console.log("Is valid Password", isValidPassword);
-
-    if (isValidPassword) {
-      // create a JWT
-
-      const token = await userDetail.getJWT();
-      console.log("Token JWT", token);
-
-      res.cookie("token", token, {
-        // maxAge or the expires works the same
-        expires: new Date(Date.now() + 5 * 60 * 1000),
-      });
-      res.status(200).send("Login Successful");
-    } else {
-      res.status(404).send("Invalid credentials");
-    }
-  } catch (error) {
-    console.log("Error Occurred : ", error);
-
-    res.status(400).json({
-      message: error.message || "Unknown error occurred",
-      success: false,
-    });
-  }
-});
-
-// get profile
-app.get("/profile", userAuth, async (req, res) => {
-  try {
-    res.send({ message: "Profile fetched", success: true, data: req.user });
-  } catch (error) {
-    console.log("Error Occurred : ", error);
-
-    res.status(400).json({
-      message: error.message || "Unknown error occurred",
-      success: false,
-    });
-  }
-});
+// Routes
+app.use("/api/", profileRouter);
+app.use("/api/", authRouter);
 
 // send connection request
 app.post("/sendConnectionRequest", userAuth, (req, res) => {
@@ -118,7 +63,7 @@ app.get("/user", async (req, res) => {
     const user = await User.findOne({ emailId: req.body.emailId });
     if (user) {
       res.status(200).send({
-        message: "User data saved successfully",
+        message: "User data fetched successfully",
         data: user,
         success: true,
       });
